@@ -124,51 +124,64 @@
             left: 20px;
             display: none;
             flex-direction: column;
-            gap: 15px;
-            padding: 20px;
-            background: rgba(10, 10, 10, 0.9);
-            border: 2px solid #00ff88;
+            gap: 10px;
+            padding: 15px;
+            background: rgba(10, 10, 10, 0.7);
+            border: 2px solid rgba(0, 255, 136, 0.5);
             border-radius: 10px;
         }
 
         .color-option {
-            width: 50px;
-            height: 50px;
+            width: 35px;
+            height: 35px;
             border-radius: 50%;
             cursor: pointer;
-            border: 3px solid transparent;
+            border: 2px solid transparent;
             transition: all 0.2s;
+            opacity: 0.7;
         }
 
         .color-option:hover,
         .color-option.active {
             border-color: #00ff88;
-            box-shadow: 0 0 15px currentColor;
+            box-shadow: 0 0 10px currentColor;
+            opacity: 1;
+        }
+
+        .color-option.eraser {
+            background: linear-gradient(45deg, #ff0000 25%, transparent 25%, transparent 75%, #ff0000 75%, #ff0000),
+                linear-gradient(45deg, #ff0000 25%, #333 25%, #333 75%, #ff0000 75%, #ff0000);
+            background-size: 10px 10px;
+            background-position: 0 0, 5px 5px;
+            border: 2px solid #666;
         }
 
         .brush-sizes {
             display: flex;
-            gap: 10px;
+            gap: 8px;
             justify-content: center;
         }
 
         .brush-size {
-            width: 40px;
-            height: 40px;
+            width: 32px;
+            height: 32px;
             border-radius: 50%;
-            background: #333;
-            border: 2px solid #00ff88;
+            background: rgba(51, 51, 51, 0.7);
+            border: 2px solid rgba(0, 255, 136, 0.5);
             cursor: pointer;
             display: flex;
             align-items: center;
             justify-content: center;
             color: #00ff88;
-            font-size: 12px;
+            font-size: 11px;
+            opacity: 0.7;
         }
 
+        .brush-size:hover,
         .brush-size.active {
             background: #00ff88;
             color: #0a0a0a;
+            opacity: 1;
         }
 
         #status {
@@ -419,6 +432,7 @@
         <div class="color-option" style="background: #00ffff;" data-color="#00ffff"></div>
         <div class="color-option" style="background: #ffffff;" data-color="#ffffff"></div>
         <div class="color-option" style="background: #000000;" data-color="#000000"></div>
+        <div class="color-option eraser" data-color="eraser" title="Eraser"></div>
         <div class="brush-sizes">
             <div class="brush-size active" data-size="5">S</div>
             <div class="brush-size" data-size="10">M</div>
@@ -451,6 +465,7 @@
         let drawingColor = '#ff0000';
         let brushSize = 5;
         let isDrawing = false;
+        let isErasing = false;
         let lastX = 0;
         let lastY = 0;
         let palmWasOpen = false;
@@ -513,7 +528,13 @@
                 if (e.target.dataset.color) {
                     document.querySelectorAll('.color-option').forEach(o => o.classList.remove('active'));
                     e.target.classList.add('active');
-                    drawingColor = e.target.dataset.color;
+
+                    if (e.target.dataset.color === 'eraser') {
+                        isErasing = true;
+                    } else {
+                        isErasing = false;
+                        drawingColor = e.target.dataset.color;
+                    }
                 }
             });
         });
@@ -658,19 +679,63 @@
         function handleDrawGestures(landmarks) {
             const indexTip = landmarks[8];
             const indexMcp = landmarks[5];
+            const middleTip = landmarks[12];
+            const middleMcp = landmarks[9];
+
             const isIndexExtended = indexTip.y < indexMcp.y;
+            const isMiddleExtended = middleTip.y < middleMcp.y;
 
             const x = (1 - indexTip.x) * drawCanvas.width;
             const y = indexTip.y * drawCanvas.height;
 
-            if (isIndexExtended) {
+            // Middle finger extended = selection mode
+            if (isMiddleExtended && !isIndexExtended) {
+                const middleX = (1 - middleTip.x) * drawCanvas.width;
+                const middleY = middleTip.y * drawCanvas.height;
+
+                // Check if hovering over palette (left side)
+                if (middleX < 100) {
+                    // Hovering over color palette area - auto-select nearest
+                    const paletteY = middleY - 20;
+                    const colorIndex = Math.floor(paletteY / 45);
+                    const colors = document.querySelectorAll('.color-option');
+
+                    if (colorIndex >= 0 && colorIndex < colors.length) {
+                        colors.forEach(c => c.classList.remove('active'));
+                        colors[colorIndex].classList.add('active');
+
+                        const selectedColor = colors[colorIndex].dataset.color;
+                        if (selectedColor === 'eraser') {
+                            isErasing = true;
+                        } else {
+                            isErasing = false;
+                            drawingColor = selectedColor;
+                        }
+                    }
+                }
+                isDrawing = false;
+                return;
+            }
+
+            // Index finger extended = draw/erase
+            if (isIndexExtended && !isMiddleExtended) {
                 if (!isDrawing) {
                     isDrawing = true;
                     lastX = x;
                     lastY = y;
                 } else {
-                    ctx.strokeStyle = drawingColor;
-                    ctx.lineWidth = brushSize;
+                    if (isErasing) {
+                        // Eraser mode - clear pixels
+                        ctx.globalCompositeOperation = 'destination-out';
+                        ctx.strokeStyle = 'rgba(0,0,0,1)';
+                        ctx.lineWidth = brushSize * 3; // Eraser is bigger
+                    } else {
+                        // Draw mode
+                        ctx.globalCompositeOperation = 'source-over';
+                        ctx.strokeStyle = drawingColor;
+                        ctx.lineWidth = brushSize;
+                    }
+
                     ctx.lineCap = 'round';
                     ctx.beginPath();
                     ctx.moveTo(lastX, lastY);
@@ -716,18 +781,31 @@
 
         async function copyToClipboard() {
             try {
-                const selectedText = window.getSelection().toString();
+                // Try to get selected text from page
+                let selectedText = window.getSelection().toString();
+
+                // If no selection, try from paste text area
+                if (!selectedText && pasteTextAreaElement.value) {
+                    selectedText = pasteTextAreaElement.value;
+                }
+
                 if (selectedText) {
                     await navigator.clipboard.writeText(selectedText);
+
+                    // Send to other devices via WebSocket
                     if (ws && ws.readyState === WebSocket.OPEN) {
                         ws.send(selectedText);
                     }
-                    clipboard.textContent = 'Copied: ' + selectedText;
+
+                    clipboard.textContent = 'Copied: ' + selectedText.substring(0, 30) + '...';
                     showGesture('✊ COPY');
                     showStatus('Copied to clipboard', 2000);
+                } else {
+                    showStatus('No text to copy - select text first', 2000);
                 }
             } catch (err) {
                 console.error('Copy failed:', err);
+                showStatus('Copy failed - select text and try again', 2000);
             }
         }
 
