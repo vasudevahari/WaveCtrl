@@ -514,8 +514,10 @@
         let isErasing = false;
         let lastX = 0;
         let lastY = 0;
-        let palmWasOpen = false;
-        let palmWasClosed = false;
+
+        // Gesture tracking for copy/paste
+        let previousPalmState = null; // 'open', 'closed', or null
+        let gestureInProgress = false;
 
         // Elements
         const requestCameraBtn = document.getElementById('requestCameraBtn');
@@ -621,22 +623,31 @@
         function connectWebSocket() {
             ws = new WebSocket(WS_SERVER);
             ws.onopen = () => showStatus('Connected to sync server');
-            ws.onmessage = (event) => {
+            ws.onmessage = async (event) => {
                 try {
                     const message = JSON.parse(event.data);
 
                     clipboard.textContent = 'Received from other device';
 
                     if (message.type === 'text') {
-                        addPasteItem('text', message.data);
-                        showStatus('Text received: ' + message.data.substring(0, 30) + '...', 3000);
+                        // Write to clipboard so it can be pasted with gesture
+                        await navigator.clipboard.writeText(message.data);
+
+                        showStatus('✅ Text received - open palm to paste', 3000);
                     } else if (message.type === 'image') {
-                        addPasteItem('image', message.data, message.mimeType);
-                        showStatus('Image received from other device', 3000);
+                        // Convert base64 to blob and write to clipboard
+                        const response = await fetch(message.data);
+                        const blob = await response.blob();
+
+                        await navigator.clipboard.write([
+                            new ClipboardItem({ [message.mimeType]: blob })
+                        ]);
+
+                        showStatus('✅ Image received - open palm to paste', 3000);
                     }
 
                 } catch (err) {
-                    console.error('Failed to parse message:', err);
+                    console.error('Failed to process message:', err);
                 }
             };
             ws.onerror = () => showStatus('Server connection failed - copy/paste unavailable');
@@ -699,23 +710,25 @@
             const isPalmOpen = checkPalmOpen(landmarks);
             const isPalmClosed = checkPalmClosed(landmarks);
 
-            // Copy on palm close
-            if (isPalmClosed && !palmWasClosed) {
-                copyToClipboard();
-                palmWasClosed = true;
-                palmWasOpen = false;
-            } else if (!isPalmClosed) {
-                palmWasClosed = false;
+            let currentState = null;
+            if (isPalmOpen) currentState = 'open';
+            else if (isPalmClosed) currentState = 'closed';
+
+            // Detect TRANSITION: open → closed = GRAB/COPY gesture
+            if (previousPalmState === 'open' && currentState === 'closed' && !gestureInProgress) {
+                gestureInProgress = true;
+                performCopy();
+                setTimeout(() => { gestureInProgress = false; }, 1000); // Debounce
             }
 
-            // Paste on palm open
-            if (isPalmOpen && !palmWasOpen) {
-                pasteFromClipboard();
-                palmWasOpen = true;
-                palmWasClosed = false;
-            } else if (!isPalmOpen) {
-                palmWasOpen = false;
+            // Detect TRANSITION: closed → open = THROW/PASTE gesture
+            if (previousPalmState === 'closed' && currentState === 'open' && !gestureInProgress) {
+                gestureInProgress = true;
+                performPaste();
+                setTimeout(() => { gestureInProgress = false; }, 1000); // Debounce
             }
+
+            previousPalmState = currentState;
         }
 
         function handleDrawGestures(landmarks) {
@@ -826,70 +839,66 @@
             return distances.every(d => d < 0.15);
         }
 
-        async function copyToClipboard() {
+        async function performCopy() {
             try {
-                // Read what's ALREADY in clipboard (user must copy first with Ctrl+C or right-click)
-                const clipboardItems = await navigator.clipboard.read();
+                // Get selected text on page
+                const selectedText = window.getSelection().toString();
 
-                for (const item of clipboardItems) {
-                    // Check for images
-                    if (item.types.includes('image/png') || item.types.includes('image/jpeg')) {
-                        const blob = await item.getType(item.types.find(t => t.startsWith('image/')));
-                        const reader = new FileReader();
+                if (selectedText) {
+                    // Copy to local clipboard
+                    await navigator.clipboard.writeText(selectedText);
 
-                        reader.onloadend = () => {
-                            const base64 = reader.result;
-
-                            // Send image data to server
-                            if (ws && ws.readyState === WebSocket.OPEN) {
-                                ws.send(JSON.stringify({
-                                    type: 'image',
-                                    data: base64,
-                                    mimeType: blob.type
-                                }));
-                            }
-
-                            clipboard.textContent = 'Image sent to server';
-                            showGesture('✊ COPY');
-                            showStatus('Image sent - will appear on other device', 2000);
-                        };
-
-                        reader.readAsDataURL(blob);
-                        return;
+                    // Send to server for other devices
+                    if (ws && ws.readyState === WebSocket.OPEN) {
+                        ws.send(JSON.stringify({
+                            type: 'text',
+                            data: selectedText
+                        }));
                     }
 
-                    // Check for text
-                    if (item.types.includes('text/plain')) {
-                        const textBlob = await item.getType('text/plain');
-                        const text = await textBlob.text();
+                    clipboard.textContent = 'Sent: ' + selectedText.substring(0, 30) + '...';
+                    showGesture('✊ GRAB');
+                    showStatus('Copied and sent to server', 2000);
+                } else {
+                    // Try reading existing clipboard (for images)
+                    const clipboardItems = await navigator.clipboard.read();
 
-                        if (text) {
-                            // Send text to server
-                            if (ws && ws.readyState === WebSocket.OPEN) {
-                                ws.send(JSON.stringify({
-                                    type: 'text',
-                                    data: text
-                                }));
-                            }
+                    for (const item of clipboardItems) {
+                        if (item.types.includes('image/png') || item.types.includes('image/jpeg')) {
+                            const blob = await item.getType(item.types.find(t => t.startsWith('image/')));
+                            const reader = new FileReader();
 
-                            clipboard.textContent = 'Text sent: ' + text.substring(0, 30) + '...';
-                            showGesture('✊ COPY');
-                            showStatus('Text sent - will appear on other device', 2000);
+                            reader.onloadend = () => {
+                                if (ws && ws.readyState === WebSocket.OPEN) {
+                                    ws.send(JSON.stringify({
+                                        type: 'image',
+                                        data: reader.result,
+                                        mimeType: blob.type
+                                    }));
+                                }
+
+                                clipboard.textContent = 'Image sent';
+                                showGesture('✊ GRAB');
+                                showStatus('Image sent to server', 2000);
+                            };
+
+                            reader.readAsDataURL(blob);
                             return;
                         }
                     }
-                }
 
-                showStatus('Clipboard empty - copy something first (Ctrl+C)', 3000);
+                    showStatus('Nothing selected - select text or copy image first', 2000);
+                }
 
             } catch (err) {
                 console.error('Copy failed:', err);
-                showStatus('Clipboard read failed - copy something first', 2000);
+                showStatus('Copy failed - select text first', 2000);
             }
         }
 
-        async function pasteFromClipboard() {
+        async function performPaste() {
             try {
+                // Paste from clipboard
                 const clipboardItems = await navigator.clipboard.read();
 
                 for (const item of clipboardItems) {
@@ -900,7 +909,7 @@
 
                         reader.onloadend = () => {
                             addPasteItem('image', reader.result, blob.type);
-                            showGesture('✋ PASTE');
+                            showGesture('✋ THROW');
                             showStatus('Image pasted', 2000);
                         };
 
@@ -915,17 +924,17 @@
 
                         if (text) {
                             addPasteItem('text', text);
-                            showGesture('✋ PASTE');
+                            showGesture('✋ THROW');
                             showStatus('Text pasted', 2000);
                             return;
                         }
                     }
                 }
 
-                showStatus('Nothing in clipboard to paste', 2000);
+                showStatus('Nothing to paste', 2000);
 
             } catch (err) {
-                showStatus('Clipboard permission needed - try again', 3000);
+                showStatus('Clipboard permission needed', 2000);
                 console.error('Paste failed:', err);
             }
         }
