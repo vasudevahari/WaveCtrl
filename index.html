@@ -397,18 +397,25 @@
         function handleCopyPaste(lm) {
             const open = checkOpen(lm);
             const closed = checkClosed(lm);
-            let state = open ? 'open' : (closed ? 'closed' : null);
 
+            let state = null;
+            if (open && !closed) state = 'open';
+            else if (closed && !open) state = 'closed';
+
+            // Detect GRAB gesture: open → closed
             if (lastGestureState === 'open' && state === 'closed' && !gestureDebounce) {
+                console.log('GRAB DETECTED - Copying...');
                 performCopy();
                 gestureDebounce = true;
-                setTimeout(() => { gestureDebounce = false; }, 1500);
+                setTimeout(() => { gestureDebounce = false; }, 2000);
             }
 
+            // Detect THROW gesture: closed → open
             if (lastGestureState === 'closed' && state === 'open' && !gestureDebounce) {
+                console.log('THROW DETECTED - Pasting...');
                 performPaste();
                 gestureDebounce = true;
-                setTimeout(() => { gestureDebounce = false; }, 1500);
+                setTimeout(() => { gestureDebounce = false; }, 2000);
             }
 
             lastGestureState = state;
@@ -460,78 +467,133 @@
 
         async function performCopy() {
             try {
-                const text = window.getSelection().toString();
+                // Get selected text
+                const text = window.getSelection().toString().trim();
+
                 if (text) {
+                    // Copy to clipboard
                     await navigator.clipboard.writeText(text);
-                    if (ws && ws.readyState === 1) ws.send(JSON.stringify({ type: 'text', data: text }));
-                    showGesture('✊');
-                    showStatus('✅ Copied and sent');
-                } else {
-                    const items = await navigator.clipboard.read();
-                    for (const item of items) {
-                        if (item.types.some(t => t.startsWith('image/'))) {
-                            const blob = await item.getType(item.types.find(t => t.startsWith('image/')));
-                            const reader = new FileReader();
-                            reader.onloadend = () => {
-                                if (ws && ws.readyState === 1) {
-                                    ws.send(JSON.stringify({ type: 'image', data: reader.result, mimeType: blob.type }));
-                                }
-                                showGesture('✊');
-                                showStatus('✅ Image sent');
-                            };
-                            reader.readAsDataURL(blob);
-                            return;
-                        }
+
+                    // Send to server if connected
+                    if (ws && ws.readyState === 1) {
+                        ws.send(JSON.stringify({ type: 'text', data: text }));
+                        showStatus('✅ Copied: "' + text.substring(0, 20) + '..." - Sent to server');
+                    } else {
+                        showStatus('✅ Copied: "' + text.substring(0, 20) + '..." - Local only');
                     }
-                    showStatus('❌ Nothing to copy');
+
+                    showGesture('✊');
+                    return;
                 }
-            } catch { showStatus('❌ Copy failed'); }
+
+                // If no text selected, try to copy image from clipboard
+                const items = await navigator.clipboard.read();
+                for (const item of items) {
+                    if (item.types.some(t => t.startsWith('image/'))) {
+                        const imageType = item.types.find(t => t.startsWith('image/'));
+                        const blob = await item.getType(imageType);
+                        const reader = new FileReader();
+
+                        reader.onloadend = () => {
+                            if (ws && ws.readyState === 1) {
+                                ws.send(JSON.stringify({
+                                    type: 'image',
+                                    data: reader.result,
+                                    mimeType: blob.type
+                                }));
+                                showStatus('✅ Image sent to server');
+                            } else {
+                                showStatus('✅ Image copied - Local only');
+                            }
+                            showGesture('✊');
+                        };
+
+                        reader.readAsDataURL(blob);
+                        return;
+                    }
+                }
+
+                showStatus('❌ Nothing selected - Select text first then close palm');
+
+            } catch (err) {
+                console.error('Copy error:', err);
+                showStatus('❌ Copy failed - Select text and try again');
+            }
         }
 
         async function performPaste() {
             try {
                 const items = await navigator.clipboard.read();
+
                 for (const item of items) {
+                    // Try text first
                     if (item.types.includes('text/plain')) {
                         const blob = await item.getType('text/plain');
                         const text = await blob.text();
-                        const div = document.createElement('div');
-                        div.className = 'paste-item';
-                        div.textContent = text;
-                        document.getElementById('pasteContent').appendChild(div);
-                        showGesture('✋');
-                        showStatus('✅ Pasted');
-                        return;
+
+                        if (text.trim()) {
+                            const div = document.createElement('div');
+                            div.className = 'paste-item';
+                            div.innerHTML = `<strong>TEXT:</strong><br>${escapeHtml(text)}`;
+                            document.getElementById('pasteContent').appendChild(div);
+                            document.getElementById('pasteContent').scrollTop = 999999;
+
+                            showGesture('✋');
+                            showStatus('✅ Text pasted: "' + text.substring(0, 20) + '..."');
+                            return;
+                        }
                     }
+
+                    // Try image
                     if (item.types.some(t => t.startsWith('image/'))) {
-                        const blob = await item.getType(item.types.find(t => t.startsWith('image/')));
+                        const imageType = item.types.find(t => t.startsWith('image/'));
+                        const blob = await item.getType(imageType);
                         const reader = new FileReader();
+
                         reader.onloadend = () => {
                             const div = document.createElement('div');
                             div.className = 'paste-item';
+                            div.innerHTML = '<strong>IMAGE:</strong>';
+
                             const img = document.createElement('img');
                             img.src = reader.result;
                             div.appendChild(img);
+
                             const btn = document.createElement('button');
                             btn.className = 'download-btn';
-                            btn.textContent = 'Download';
+                            btn.textContent = 'Download Image';
                             btn.onclick = () => {
                                 const a = document.createElement('a');
                                 a.href = reader.result;
-                                a.download = 'image.png';
+                                a.download = 'received-image.png';
                                 a.click();
                             };
                             div.appendChild(btn);
+
                             document.getElementById('pasteContent').appendChild(div);
+                            document.getElementById('pasteContent').scrollTop = 999999;
+
                             showGesture('✋');
                             showStatus('✅ Image pasted');
                         };
+
                         reader.readAsDataURL(blob);
                         return;
                     }
                 }
-                showStatus('❌ Nothing to paste');
-            } catch { showStatus('❌ Paste failed'); }
+
+                showStatus('❌ Clipboard empty - Nothing to paste');
+
+            } catch (err) {
+                console.error('Paste error:', err);
+                showStatus('❌ Paste failed - Grant clipboard permission');
+            }
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
         }
 
         function showStatus(msg) {
