@@ -120,61 +120,65 @@
 
         .color-palette {
             position: fixed;
-            top: 20px;
-            left: 20px;
+            bottom: 20px;
+            right: 20px;
             display: none;
-            flex-direction: column;
-            gap: 10px;
-            padding: 15px;
-            background: rgba(10, 10, 10, 0.7);
-            border: 2px solid rgba(0, 255, 136, 0.5);
+            flex-direction: row;
+            flex-wrap: wrap;
+            gap: 8px;
+            padding: 12px;
+            background: rgba(10, 10, 10, 0.6);
+            border: 2px solid rgba(0, 255, 136, 0.4);
             border-radius: 10px;
+            max-width: 200px;
         }
 
         .color-option {
-            width: 35px;
-            height: 35px;
+            width: 28px;
+            height: 28px;
             border-radius: 50%;
             cursor: pointer;
             border: 2px solid transparent;
             transition: all 0.2s;
-            opacity: 0.7;
+            opacity: 0.6;
         }
 
         .color-option:hover,
         .color-option.active {
             border-color: #00ff88;
-            box-shadow: 0 0 10px currentColor;
+            box-shadow: 0 0 8px currentColor;
             opacity: 1;
         }
 
         .color-option.eraser {
             background: linear-gradient(45deg, #ff0000 25%, transparent 25%, transparent 75%, #ff0000 75%, #ff0000),
                 linear-gradient(45deg, #ff0000 25%, #333 25%, #333 75%, #ff0000 75%, #ff0000);
-            background-size: 10px 10px;
-            background-position: 0 0, 5px 5px;
+            background-size: 8px 8px;
+            background-position: 0 0, 4px 4px;
             border: 2px solid #666;
         }
 
         .brush-sizes {
             display: flex;
-            gap: 8px;
+            gap: 6px;
             justify-content: center;
+            width: 100%;
+            margin-top: 4px;
         }
 
         .brush-size {
-            width: 32px;
-            height: 32px;
+            width: 28px;
+            height: 28px;
             border-radius: 50%;
-            background: rgba(51, 51, 51, 0.7);
-            border: 2px solid rgba(0, 255, 136, 0.5);
+            background: rgba(51, 51, 51, 0.6);
+            border: 2px solid rgba(0, 255, 136, 0.4);
             cursor: pointer;
             display: flex;
             align-items: center;
             justify-content: center;
             color: #00ff88;
-            font-size: 11px;
-            opacity: 0.7;
+            font-size: 10px;
+            opacity: 0.6;
         }
 
         .brush-size:hover,
@@ -279,6 +283,48 @@
             font-size: 1rem;
             resize: none;
             outline: none;
+        }
+
+        #pasteContent {
+            flex: 1;
+            padding: 15px;
+            overflow-y: auto;
+            color: #fff;
+        }
+
+        .paste-item {
+            margin-bottom: 15px;
+            padding: 10px;
+            background: rgba(0, 255, 136, 0.1);
+            border-radius: 5px;
+            border-left: 3px solid #00ff88;
+        }
+
+        .paste-item.image {
+            text-align: center;
+        }
+
+        .paste-item img {
+            max-width: 100%;
+            max-height: 200px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+
+        .paste-item .download-btn {
+            background: #00ff88;
+            color: #0a0a0a;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            margin-top: 10px;
+        }
+
+        .paste-item .download-btn:hover {
+            background: #00cc6e;
         }
 
         .paste-indicator {
@@ -444,10 +490,10 @@
     <div id="clipboard"></div>
     <div id="pasteTextArea">
         <div class="header">
-            <span>Pasted Content</span>
+            <span>Received Content</span>
             <div class="paste-indicator"></div>
         </div>
-        <textarea readonly></textarea>
+        <div id="pasteContent"></div>
     </div>
     <div class="scanning-bar">
         <div class="scan-text">Scanning gesture...</div>
@@ -487,7 +533,7 @@
         const gestureIndicator = document.getElementById('gestureIndicator');
         const mainContainer = document.getElementById('mainContainer');
         const pasteTextArea = document.getElementById('pasteTextArea');
-        const pasteTextAreaElement = pasteTextArea.querySelector('textarea');
+        const pasteContent = document.getElementById('pasteContent');
         const pasteIndicator = pasteTextArea.querySelector('.paste-indicator');
         const scanningBar = document.querySelector('.scanning-bar');
 
@@ -576,26 +622,22 @@
             ws = new WebSocket(WS_SERVER);
             ws.onopen = () => showStatus('Connected to sync server');
             ws.onmessage = (event) => {
-                const receivedText = event.data;
-                clipboard.textContent = 'Synced: ' + receivedText;
+                try {
+                    const message = JSON.parse(event.data);
 
-                // Append to text area with new line
-                if (pasteTextAreaElement.value) {
-                    pasteTextAreaElement.value += '\n' + receivedText;
-                } else {
-                    pasteTextAreaElement.value = receivedText;
+                    clipboard.textContent = 'Received from other device';
+
+                    if (message.type === 'text') {
+                        addPasteItem('text', message.data);
+                        showStatus('Text received: ' + message.data.substring(0, 30) + '...', 3000);
+                    } else if (message.type === 'image') {
+                        addPasteItem('image', message.data, message.mimeType);
+                        showStatus('Image received from other device', 3000);
+                    }
+
+                } catch (err) {
+                    console.error('Failed to parse message:', err);
                 }
-
-                // Scroll to bottom
-                pasteTextAreaElement.scrollTop = pasteTextAreaElement.scrollHeight;
-
-                // Show animation
-                pasteIndicator.classList.add('active');
-                setTimeout(() => {
-                    pasteIndicator.classList.remove('active');
-                }, 2000);
-
-                showStatus('Received from other device', 2000);
             };
             ws.onerror = () => showStatus('Server connection failed - copy/paste unavailable');
         }
@@ -693,11 +735,16 @@
                 const middleX = (1 - middleTip.x) * drawCanvas.width;
                 const middleY = middleTip.y * drawCanvas.height;
 
-                // Check if hovering over palette (left side)
-                if (middleX < 100) {
+                // Check if hovering over palette (bottom right)
+                const paletteRight = drawCanvas.width - 20;
+                const paletteBottom = drawCanvas.height - 20;
+
+                if (middleX > paletteRight - 200 && middleY > paletteBottom - 120) {
                     // Hovering over color palette area - auto-select nearest
-                    const paletteY = middleY - 20;
-                    const colorIndex = Math.floor(paletteY / 45);
+                    const relativeX = middleX - (paletteRight - 200);
+                    const relativeY = middleY - (paletteBottom - 120);
+
+                    const colorIndex = Math.floor(relativeY / 36) * 5 + Math.floor(relativeX / 36);
                     const colors = document.querySelectorAll('.color-option');
 
                     if (colorIndex >= 0 && colorIndex < colors.length) {
@@ -781,61 +828,146 @@
 
         async function copyToClipboard() {
             try {
-                // Try to get selected text from page
-                let selectedText = window.getSelection().toString();
+                // Read what's ALREADY in clipboard (user must copy first with Ctrl+C or right-click)
+                const clipboardItems = await navigator.clipboard.read();
 
-                // If no selection, try from paste text area
-                if (!selectedText && pasteTextAreaElement.value) {
-                    selectedText = pasteTextAreaElement.value;
-                }
+                for (const item of clipboardItems) {
+                    // Check for images
+                    if (item.types.includes('image/png') || item.types.includes('image/jpeg')) {
+                        const blob = await item.getType(item.types.find(t => t.startsWith('image/')));
+                        const reader = new FileReader();
 
-                if (selectedText) {
-                    await navigator.clipboard.writeText(selectedText);
+                        reader.onloadend = () => {
+                            const base64 = reader.result;
 
-                    // Send to other devices via WebSocket
-                    if (ws && ws.readyState === WebSocket.OPEN) {
-                        ws.send(selectedText);
+                            // Send image data to server
+                            if (ws && ws.readyState === WebSocket.OPEN) {
+                                ws.send(JSON.stringify({
+                                    type: 'image',
+                                    data: base64,
+                                    mimeType: blob.type
+                                }));
+                            }
+
+                            clipboard.textContent = 'Image sent to server';
+                            showGesture('✊ COPY');
+                            showStatus('Image sent - will appear on other device', 2000);
+                        };
+
+                        reader.readAsDataURL(blob);
+                        return;
                     }
 
-                    clipboard.textContent = 'Copied: ' + selectedText.substring(0, 30) + '...';
-                    showGesture('✊ COPY');
-                    showStatus('Copied to clipboard', 2000);
-                } else {
-                    showStatus('No text to copy - select text first', 2000);
+                    // Check for text
+                    if (item.types.includes('text/plain')) {
+                        const textBlob = await item.getType('text/plain');
+                        const text = await textBlob.text();
+
+                        if (text) {
+                            // Send text to server
+                            if (ws && ws.readyState === WebSocket.OPEN) {
+                                ws.send(JSON.stringify({
+                                    type: 'text',
+                                    data: text
+                                }));
+                            }
+
+                            clipboard.textContent = 'Text sent: ' + text.substring(0, 30) + '...';
+                            showGesture('✊ COPY');
+                            showStatus('Text sent - will appear on other device', 2000);
+                            return;
+                        }
+                    }
                 }
+
+                showStatus('Clipboard empty - copy something first (Ctrl+C)', 3000);
+
             } catch (err) {
                 console.error('Copy failed:', err);
-                showStatus('Copy failed - select text and try again', 2000);
+                showStatus('Clipboard read failed - copy something first', 2000);
             }
         }
 
         async function pasteFromClipboard() {
             try {
-                const text = await navigator.clipboard.readText();
+                const clipboardItems = await navigator.clipboard.read();
 
-                // Append to text area with new line
-                if (pasteTextAreaElement.value) {
-                    pasteTextAreaElement.value += '\n' + text;
-                } else {
-                    pasteTextAreaElement.value = text;
+                for (const item of clipboardItems) {
+                    // Handle images
+                    if (item.types.includes('image/png') || item.types.includes('image/jpeg')) {
+                        const blob = await item.getType(item.types.find(t => t.startsWith('image/')));
+                        const reader = new FileReader();
+
+                        reader.onloadend = () => {
+                            addPasteItem('image', reader.result, blob.type);
+                            showGesture('✋ PASTE');
+                            showStatus('Image pasted', 2000);
+                        };
+
+                        reader.readAsDataURL(blob);
+                        return;
+                    }
+
+                    // Handle text
+                    if (item.types.includes('text/plain')) {
+                        const textBlob = await item.getType('text/plain');
+                        const text = await textBlob.text();
+
+                        if (text) {
+                            addPasteItem('text', text);
+                            showGesture('✋ PASTE');
+                            showStatus('Text pasted', 2000);
+                            return;
+                        }
+                    }
                 }
 
-                // Scroll to bottom
-                pasteTextAreaElement.scrollTop = pasteTextAreaElement.scrollHeight;
+                showStatus('Nothing in clipboard to paste', 2000);
 
-                // Show animation
-                pasteIndicator.classList.add('active');
-                setTimeout(() => {
-                    pasteIndicator.classList.remove('active');
-                }, 2000);
-
-                showGesture('✋ PASTE');
-                showStatus('Pasted: ' + text.substring(0, 30) + '...', 2000);
             } catch (err) {
-                // Request clipboard permission if denied
                 showStatus('Clipboard permission needed - try again', 3000);
                 console.error('Paste failed:', err);
             }
+        }
+
+        function addPasteItem(type, data, mimeType = null) {
+            const item = document.createElement('div');
+            item.className = 'paste-item';
+
+            if (type === 'text') {
+                item.innerHTML = `<div style="word-wrap: break-word;">${escapeHtml(data)}</div>`;
+            } else if (type === 'image') {
+                item.className = 'paste-item image';
+                const img = document.createElement('img');
+                img.src = data;
+                item.appendChild(img);
+
+                const downloadBtn = document.createElement('button');
+                downloadBtn.className = 'download-btn';
+                downloadBtn.textContent = 'Download Image';
+                downloadBtn.onclick = () => {
+                    const a = document.createElement('a');
+                    a.href = data;
+                    a.download = 'received-image.' + (mimeType === 'image/jpeg' ? 'jpg' : 'png');
+                    a.click();
+                };
+                item.appendChild(downloadBtn);
+            }
+
+            pasteContent.appendChild(item);
+            pasteContent.scrollTop = pasteContent.scrollHeight;
+
+            // Show animation
+            pasteIndicator.classList.add('active');
+            setTimeout(() => {
+                pasteIndicator.classList.remove('active');
+            }, 2000);
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
         }
 
         function showStatus(message, duration = null) {
