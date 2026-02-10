@@ -112,6 +112,29 @@
             height: 100vh;
         }
 
+        #rpsContainer {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            pointer-events: none;
+            /* Let clicks pass through if needed, though canvas might need them? Canvas is for display mostly */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 50;
+            /* Above video, below UI controls? */
+        }
+
+        #rpsContainer canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+
         #drawCanvas {
             width: 100%;
             height: 100%;
@@ -458,6 +481,7 @@
         <div class="mode-select hidden" id="modeSelect">
             <button id="copyPasteBtn">COPY / PASTE</button>
             <button id="drawBtn">DRAW</button>
+            <button id="rpsBtn">ROCK PAPER SCISSORS</button>
         </div>
     </div>
 
@@ -467,6 +491,10 @@
 
     <div id="canvasContainer">
         <canvas id="drawCanvas"></canvas>
+    </div>
+
+    <div id="rpsContainer" class="hidden">
+        <canvas id="rpsCanvas" width="640" height="480"></canvas>
     </div>
 
     <div class="color-palette" id="colorPalette">
@@ -539,6 +567,19 @@
         const pasteIndicator = pasteTextArea.querySelector('.paste-indicator');
         const scanningBar = document.querySelector('.scanning-bar');
 
+        // RPS Elements & Variables
+        const rpsBtn = document.getElementById('rpsBtn');
+        const rpsContainer = document.getElementById('rpsContainer');
+        const rpsCanvas = document.getElementById('rpsCanvas');
+        const rpsCtx = rpsCanvas.getContext('2d');
+
+        let playerScore = 0;
+        let aiScore = 0;
+        let rpsTimer = 0;
+        let rpsDelay = 3000;
+        let rpsResult = "";
+        let aiMove = "";
+
         let cameraPermissionGranted = false;
 
         // Setup canvas
@@ -569,6 +610,7 @@
         // Mode selection
         copyPasteBtn.addEventListener('click', () => startCopyPasteMode());
         drawBtn.addEventListener('click', () => startDrawMode());
+        rpsBtn.addEventListener('click', () => startRPSMode());
 
         // Color selection
         document.querySelectorAll('.color-option').forEach(option => {
@@ -617,6 +659,23 @@
             colorPalette.style.display = 'flex';
             status.style.display = 'block';
             showStatus('Draw Mode: Point index finger to draw');
+            if (!camera) startCamera();
+        }
+
+        function startRPSMode() {
+            currentMode = 'rps';
+            mainContainer.classList.add('hidden');
+            videoContainer.style.display = 'block';
+            rpsContainer.classList.remove('hidden');
+
+            // Hide other elements
+            canvasContainer.style.display = 'none';
+            colorPalette.style.display = 'none';
+            clipboard.style.display = 'none';
+            pasteTextArea.style.display = 'none';
+
+            status.style.display = 'block';
+            showStatus('RPS Mode: Show Rock, Paper, or Scissors');
             if (!camera) startCamera();
         }
 
@@ -699,11 +758,64 @@
                     handleCopyPasteGestures(landmarks);
                 } else if (currentMode === 'draw') {
                     handleDrawGestures(landmarks);
+                } else if (currentMode === 'rps') {
+                    handleRPSGestures(landmarks);
                 }
             } else {
                 // Hide scanning when no hand detected
                 scanningBar.classList.remove('active');
             }
+        }
+
+        function handleRPSGestures(lm) {
+            rpsCtx.clearRect(0, 0, rpsCanvas.width, rpsCanvas.height);
+            rpsCtx.drawImage(webcam, 0, 0, 640, 480);
+
+            const tips = [8, 12, 16, 20];
+            const pips = [6, 10, 14, 18];
+
+            const fingers = tips.map((t, i) => lm[t].y < lm[pips[i]].y);
+
+            let playerMove = null;
+
+            if (JSON.stringify(fingers) === "[false,false,false,false]") playerMove = "ROCK";
+            if (JSON.stringify(fingers) === "[true,true,true,true]") playerMove = "PAPER";
+            if (JSON.stringify(fingers) === "[true,true,false,false]") playerMove = "SCISSORS";
+
+            const now = Date.now();
+
+            if (rpsTimer && now - rpsTimer < rpsDelay) {
+                drawText("Next: " + Math.ceil((rpsDelay - (now - rpsTimer)) / 1000), 350, 100, "yellow");
+            } else if (playerMove) {
+                const choices = ["ROCK", "PAPER", "SCISSORS"];
+                aiMove = choices[Math.floor(Math.random() * 3)];
+
+                if (playerMove === aiMove) rpsResult = "DRAW";
+                else if (
+                    (playerMove === "ROCK" && aiMove === "SCISSORS") ||
+                    (playerMove === "SCISSORS" && aiMove === "PAPER") ||
+                    (playerMove === "PAPER" && aiMove === "ROCK")
+                ) {
+                    playerScore++;
+                    rpsResult = "YOU WIN";
+                } else {
+                    aiScore++;
+                    rpsResult = "AI WINS";
+                }
+
+                rpsTimer = now;
+            }
+
+            drawText("Player: " + playerScore, 10, 30, "white");
+            drawText("AI: " + aiScore, 200, 30, "white");
+            if (aiMove) drawText("AI: " + aiMove, 10, 90, "cyan");
+            if (rpsResult) drawText(rpsResult, 350, 60, "red");
+        }
+
+        function drawText(t, x, y, c) {
+            rpsCtx.fillStyle = c;
+            rpsCtx.font = "30px monospace";
+            rpsCtx.fillText(t, x, y);
         }
 
         function handleCopyPasteGestures(landmarks) {
