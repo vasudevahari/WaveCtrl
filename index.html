@@ -52,39 +52,28 @@
             color: #0a0a0a;
         }
 
-        /* Camera view - top right corner */
+        /* Fullscreen Camera Background */
         #videoContainer {
             position: fixed;
-            top: 20px;
-            right: 20px;
-            width: 280px;
-            height: 210px;
-            border: 2px solid #00ff88;
-            border-radius: 10px;
+            inset: 0;
+            width: 100vw;
+            height: 100vh;
             display: none;
-            z-index: 1000;
-            box-shadow: 0 0 20px rgba(0, 255, 136, 0.5);
-        }
-
-        #videoContainer.draw-mode {
-            opacity: 0.3;
+            z-index: 0;
         }
 
         video {
             width: 100%;
             height: 100%;
-            transform: scaleX(-1);
-            border-radius: 8px;
+            object-fit: cover;
         }
 
         #drawCanvas {
             position: fixed;
-            top: 0;
-            left: 0;
-            width: 100vw;
-            height: 100vh;
-            display: none;
+            inset: 0;
             z-index: 1;
+            pointer-events: none;
+            display: none;
         }
 
         /* Color palette - bottom right */
@@ -271,16 +260,16 @@
         /* RPS Game Styles */
         #rpsGame {
             position: fixed;
-            top: 0;
-            left: 0;
-            width: 100vw;
-            height: 100vh;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            inset: 0;
+            background: #0a0a0a;
+            color: #00ff88;
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
             z-index: 500;
+            font-family: 'Courier New', monospace;
+            display: none;
         }
 
         #rpsWaiting {
@@ -321,9 +310,10 @@
         }
 
         .rps-player {
-            background: rgba(255, 255, 255, 0.2);
-            padding: 40px;
-            border-radius: 20px;
+            background: rgba(0, 255, 136, 0.1);
+            border: 2px solid #00ff88;
+            padding: 30px;
+            border-radius: 15px;
             min-width: 300px;
             text-align: center;
         }
@@ -366,16 +356,17 @@
         /* Room code UI */
         .room-code-display {
             position: fixed;
-            top: 100px;
+            top: 60px;
             left: 50%;
             transform: translateX(-50%);
             background: rgba(0, 255, 136, 0.2);
             border: 2px solid #00ff88;
-            padding: 15px 30px;
+            padding: 8px 16px;
             border-radius: 15px;
             display: none;
             z-index: 1001;
             text-align: center;
+            font-size: 0.9rem;
         }
 
         .room-code-display .code {
@@ -482,11 +473,12 @@
 
     <!-- Room Input Modal -->
     <div class="room-input-modal" id="roomInputModal">
-        <h3>Enter Room Code</h3>
-        <input type="text" id="roomCodeInput" maxlength="6" placeholder="000000">
+        <h3>Start Session</h3>
+        <input type="text" id="roomCodeInput" maxlength="6" placeholder="ENTER 6-DIGIT CODE">
         <br>
+        <button onclick="createRoom()">CREATE ROOM</button>
         <button onclick="joinRoom()">JOIN ROOM</button>
-        <button onclick="closeRoomModal()">CANCEL</button>
+        <button onclick="closeRoomModal()" style="border-color: #ff4444; color: #ff4444;">CANCEL</button>
     </div>
 
     <!-- RPS Game UI -->
@@ -553,18 +545,7 @@
         document.getElementById('copyPasteBtn').onclick = () => {
             if (!cameraGranted) return;
             currentMode = 'copypaste';
-            currentRoom = generateRoomCode();
-
-            document.getElementById('mainContainer').classList.add('hidden');
-            videoContainer.style.display = 'block';
-            document.getElementById('status').style.display = 'block';
-            document.getElementById('pasteArea').style.display = 'flex';
-            document.getElementById('roomCodeDisplay').style.display = 'block';
-            document.getElementById('roomCode').textContent = currentRoom;
-
-            showStatus('Copy/Paste Mode - Room: ' + currentRoom);
-            connectWebSocket();
-            initCamera();
+            showRoomInput();
         };
 
         document.getElementById('drawBtn').onclick = () => {
@@ -572,7 +553,7 @@
             currentMode = 'draw';
             document.getElementById('mainContainer').classList.add('hidden');
             videoContainer.style.display = 'block';
-            videoContainer.classList.add('draw-mode');
+            // Draw mode is now fullscreen, no special class needed for opacity
             drawCanvas.style.display = 'block';
             document.getElementById('colorPalette').style.display = 'flex';
             document.getElementById('status').style.display = 'block';
@@ -583,14 +564,7 @@
         document.getElementById('rpsBtn').onclick = () => {
             if (!cameraGranted) return;
             currentMode = 'rps';
-            currentRoom = generateRoomCode();
-
-            document.getElementById('mainContainer').classList.add('hidden');
-            videoContainer.style.display = 'block';
-            document.getElementById('rpsGame').classList.remove('hidden');
-            showStatus('RPS Mode - Room: ' + currentRoom);
-            connectRpsWebSocket();
-            initCamera();
+            showRoomInput();
         };
 
         function showRoomInput() {
@@ -602,16 +576,48 @@
             document.getElementById('roomCodeInput').value = '';
         }
 
+        function createRoom() {
+            currentRoom = generateRoomCode();
+            if (currentMode === 'rps') startRps();
+            else startCopyPaste();
+            closeRoomModal();
+        }
+
         function joinRoom() {
             const code = document.getElementById('roomCodeInput').value;
-            if (code.length === 6) {
-                currentRoom = code;
-                document.getElementById('roomCode').textContent = currentRoom;
-                closeRoomModal();
-                showStatus('Joined room: ' + currentRoom);
-            } else {
+            if (code.length !== 6) {
                 alert('Please enter a 6-digit room code');
+                return;
             }
+            currentRoom = code;
+            if (currentMode === 'rps') startRps();
+            else startCopyPaste();
+            closeRoomModal();
+        }
+
+        function startCopyPaste() {
+            document.getElementById('mainContainer').classList.add('hidden');
+            videoContainer.style.display = 'block';
+            document.getElementById('status').style.display = 'block';
+            document.getElementById('pasteArea').style.display = 'flex';
+            document.getElementById('roomCodeDisplay').style.display = 'block';
+            document.getElementById('roomCode').textContent = currentRoom;
+
+            showStatus('Room: ' + currentRoom);
+            connectWebSocket();
+            initCamera();
+        }
+
+        function startRps() {
+            document.getElementById('mainContainer').classList.add('hidden');
+            videoContainer.style.display = 'block';
+            document.getElementById('rpsGame').classList.remove('hidden');
+            document.getElementById('roomCodeDisplay').style.display = 'block';
+            document.getElementById('roomCode').textContent = currentRoom;
+
+            showStatus('Room: ' + currentRoom);
+            connectRpsWebSocket();
+            initCamera();
         }
 
         document.querySelectorAll('.color-option').forEach(option => {
@@ -811,52 +817,23 @@
             try {
                 const text = window.getSelection().toString().trim();
 
-                if (text) {
-                    await navigator.clipboard.writeText(text);
-
-                    if (ws && ws.readyState === 1) {
-                        ws.send(JSON.stringify({
-                            type: 'text',
-                            data: text,
-                            room: currentRoom
-                        }));
-                        showStatus('✅ Copied and sent: "' + text.substring(0, 20) + '..."');
-                    } else {
-                        showStatus('✅ Copied: "' + text.substring(0, 20) + '..." - Local only');
-                    }
-
-                    showGesture('✊');
+                if (!text) {
+                    showStatus('Select text first');
                     return;
                 }
 
-                const items = await navigator.clipboard.read();
-                for (const item of items) {
-                    if (item.types.some(t => t.startsWith('image/'))) {
-                        const imageType = item.types.find(t => t.startsWith('image/'));
-                        const blob = await item.getType(imageType);
-                        const reader = new FileReader();
+                await navigator.clipboard.writeText(text);
 
-                        reader.onloadend = () => {
-                            if (ws && ws.readyState === 1) {
-                                ws.send(JSON.stringify({
-                                    type: 'image',
-                                    data: reader.result,
-                                    mimeType: blob.type,
-                                    room: currentRoom
-                                }));
-                                showStatus('✅ Image sent');
-                            } else {
-                                showStatus('✅ Image copied - Local only');
-                            }
-                            showGesture('✊');
-                        };
-
-                        reader.readAsDataURL(blob);
-                        return;
-                    }
+                if (ws && ws.readyState === 1) {
+                    ws.send(JSON.stringify({
+                        type: 'text',
+                        data: text,
+                        room: currentRoom
+                    }));
                 }
 
-                showStatus('❌ Nothing selected - Select text/image first');
+                showGesture('✊');
+                showStatus('Copied');
 
             } catch (err) {
                 console.error('Copy error:', err);
