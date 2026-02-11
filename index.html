@@ -437,40 +437,26 @@
             text-align: center;
         }
 
-        @media (max-width: 768px) {
-            body {
-                overflow: auto;
-            }
-
-            .container {
-                padding: 20px;
-                text-align: center;
-            }
-
+        @media (max-width:768px) {
             #videoContainer {
-                width: 110px !important;
-                height: 80px !important;
+                width: 100px !important;
+                height: 75px !important;
+                top: 8px !important;
+                right: 8px !important;
             }
 
             .room-code-display {
-                width: 90px;
-                padding: 4px;
+                left: 8px !important;
+                top: 8px !important;
             }
 
             #pasteArea {
-                top: 55%;
-                width: 95%;
-                height: 60%;
-            }
-
-            h1 {
-                font-size: 1.4rem;
-                margin-bottom: 20px;
+                width: 96% !important;
+                height: 62% !important;
             }
 
             button {
                 width: 100%;
-                margin: 8px 0;
             }
         }
     </style>
@@ -527,9 +513,9 @@
     <!-- Room Code Display -->
     <div class="room-code-display" id="roomCodeDisplay">
         <canvas id="qrCanvas"></canvas>
-        <br>
         <input id="roomJoinInput" placeholder="Enter code" maxlength="6">
-        <button onclick="joinRoom()" style="padding: 5px 10px; margin: 5px; font-size: 0.8rem;">Join</button>
+        <button onclick="joinRoom()">Join</button>
+        <div id="privateRoomCode" style="margin-top:6px;font-size:12px;color:#00ff88;">Code: ------</div>
     </div>
 
 
@@ -563,6 +549,7 @@
         let cameraGranted = false;
         let currentRoom = null;
         const clientId = crypto.randomUUID();
+        let lastSendTime = 0;
 
         // Draw gesture vars
         const colors = ['#ff0000', '#00ff00', '#0000ff', '#ffff00', '#ffffff'];
@@ -662,7 +649,7 @@
         };
 
         function joinRoom() {
-            const code = document.getElementById('roomJoinInput').value;
+            const code = document.getElementById('roomJoinInput').value.trim();
             if (code.length !== 6) return;
 
             currentRoom = code;
@@ -686,6 +673,7 @@
             document.getElementById('roomCodeDisplay').style.display = 'block';
 
             generateQR(currentRoom);
+            document.getElementById('privateRoomCode').innerText = 'Code: ' + currentRoom;
             showStatus('Room: ' + currentRoom);
 
             connectWebSocket();
@@ -739,9 +727,10 @@
                     showStatus('✅ Connected to room: ' + currentRoom);
                 };
 
-                ws.onmessage = async (event) => {
+                ws.onmessage = (event) => {
                     const msg = JSON.parse(event.data);
 
+                    if (msg.room !== currentRoom) return;
                     if (msg.sender === clientId) return;
 
                     if (msg.type === 'text') {
@@ -773,7 +762,7 @@
             hands.onResults(onResults);
 
             const stream = await navigator.mediaDevices.getUserMedia({
-                video: { width: 320, height: 240, frameRate: 30 }
+                video: { width: 320, height: 240, frameRate: 24 }
             });
             webcam.srcObject = stream;
             camera = new Camera(webcam, {
@@ -796,12 +785,16 @@
         function handleCopyPaste(lm) {
             const open = checkOpen(lm);
 
-            // open palm = SEND only
-            if (open && !gestureDebounce) {
-                sendClipboard();
-                gestureDebounce = true;
-                setTimeout(() => gestureDebounce = false, 1500);
-            }
+            if (!open) return;
+
+            const now = Date.now();
+
+            // debounce hard (mobile fires 100 times/sec)
+            if (now - lastSendTime < 1500) return;
+
+            lastSendTime = now;
+
+            sendClipboard();
         }
 
         function handleDraw(lm) {
@@ -865,13 +858,7 @@
             return ((lm[8].y + lm[12].y + lm[16].y + lm[20].y) / 4) < lm[0].y - 0.1;
         }
 
-        function checkClosed(lm) {
-            const p = lm[9];
-            return ((Math.hypot(lm[8].x - p.x, lm[8].y - p.y) +
-                Math.hypot(lm[12].x - p.x, lm[12].y - p.y) +
-                Math.hypot(lm[16].x - p.x, lm[16].y - p.y) +
-                Math.hypot(lm[20].x - p.x, lm[20].y - p.y)) / 4) < 0.12;
-        }
+
 
         async function sendClipboard() {
             try {
@@ -882,20 +869,23 @@
                     return;
                 }
 
-                if (ws && ws.readyState === 1) {
-                    ws.send(JSON.stringify({
-                        type: 'text',
-                        data: text,
-                        room: currentRoom,
-                        sender: clientId
-                    }));
+                if (ws?.readyState !== 1) {
+                    showStatus('Not connected');
+                    return;
                 }
 
-                showStatus('Sent');
-                showGesture('✊');
+                ws.send(JSON.stringify({
+                    type: 'text',
+                    data: text,
+                    room: currentRoom,
+                    sender: clientId
+                }));
 
-            } catch (err) {
-                showStatus('Clipboard read failed');
+                showGesture('✊');
+                showStatus('Sent');
+
+            } catch {
+                showStatus('Clipboard blocked');
             }
         }
 
