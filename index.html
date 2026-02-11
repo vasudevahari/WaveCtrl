@@ -52,24 +52,21 @@
             color: #0a0a0a;
         }
 
+        /* Camera view - top right corner */
         #videoContainer {
             position: fixed;
             top: 20px;
             right: 20px;
-            width: 320px;
-            height: 240px;
+            width: 280px;
+            height: 210px;
             border: 2px solid #00ff88;
             border-radius: 10px;
             display: none;
-            z-index: 100;
+            z-index: 1000;
+            box-shadow: 0 0 20px rgba(0, 255, 136, 0.5);
         }
 
-        #videoContainer.fullscreen {
-            top: 0;
-            left: 0;
-            width: 100vw;
-            height: 100vh;
-            border: none;
+        #videoContainer.draw-mode {
             opacity: 0.3;
         }
 
@@ -77,6 +74,7 @@
             width: 100%;
             height: 100%;
             transform: scaleX(-1);
+            border-radius: 8px;
         }
 
         #drawCanvas {
@@ -86,8 +84,10 @@
             width: 100vw;
             height: 100vh;
             display: none;
+            z-index: 1;
         }
 
+        /* Color palette - bottom right */
         .color-palette {
             position: fixed;
             bottom: 20px;
@@ -95,24 +95,30 @@
             display: none;
             flex-wrap: wrap;
             gap: 8px;
-            padding: 12px;
-            background: rgba(10, 10, 10, 0.8);
+            padding: 15px;
+            background: rgba(10, 10, 10, 0.9);
             border: 2px solid #00ff88;
             border-radius: 10px;
             max-width: 180px;
-            z-index: 200;
+            z-index: 1001;
         }
 
         .color-option {
-            width: 30px;
-            height: 30px;
+            width: 35px;
+            height: 35px;
             border-radius: 50%;
             cursor: pointer;
             border: 2px solid transparent;
+            transition: transform 0.2s;
+        }
+
+        .color-option:hover {
+            transform: scale(1.1);
         }
 
         .color-option.active {
             border-color: #00ff88;
+            box-shadow: 0 0 10px #00ff88;
         }
 
         .eraser {
@@ -123,21 +129,27 @@
             display: flex;
             gap: 5px;
             width: 100%;
-            margin-top: 5px;
+            margin-top: 8px;
         }
 
         .brush-size {
             flex: 1;
-            height: 28px;
-            background: #333;
+            height: 32px;
+            background: #1a1a2e;
             border: 2px solid #00ff88;
             cursor: pointer;
             color: #00ff88;
-            font-size: 11px;
+            font-size: 12px;
+            font-weight: bold;
             display: flex;
             align-items: center;
             justify-content: center;
             border-radius: 5px;
+            transition: all 0.2s;
+        }
+
+        .brush-size:hover {
+            transform: scale(1.05);
         }
 
         .brush-size.active {
@@ -160,46 +172,64 @@
             text-align: center;
         }
 
+        /* Received content - centered */
         #pasteArea {
             position: fixed;
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
             width: 90%;
-            max-width: 600px;
-            height: 60%;
-            max-height: 500px;
+            max-width: 700px;
+            height: 70%;
+            max-height: 600px;
             background: rgba(10, 10, 10, 0.95);
             border: 3px solid #00ff88;
-            border-radius: 10px;
+            border-radius: 15px;
             display: none;
             flex-direction: column;
-            z-index: 999;
+            z-index: 500;
             box-shadow: 0 0 40px rgba(0, 255, 136, 0.5);
         }
 
         #pasteArea .header {
-            padding: 15px;
+            padding: 20px;
             border-bottom: 2px solid #00ff88;
             color: #00ff88;
             text-transform: uppercase;
-            font-size: 1rem;
+            font-size: 1.2rem;
             text-align: center;
+            font-weight: bold;
         }
 
         #pasteContent {
-            padding: 15px;
+            padding: 20px;
             overflow-y: auto;
             flex: 1;
             color: #fff;
+            scroll-behavior: smooth;
+        }
+
+        #pasteContent::-webkit-scrollbar {
+            width: 10px;
+        }
+
+        #pasteContent::-webkit-scrollbar-track {
+            background: rgba(0, 255, 136, 0.1);
+            border-radius: 5px;
+        }
+
+        #pasteContent::-webkit-scrollbar-thumb {
+            background: #00ff88;
+            border-radius: 5px;
         }
 
         .paste-item {
-            margin-bottom: 15px;
-            padding: 10px;
+            margin-bottom: 20px;
+            padding: 15px;
             background: rgba(0, 255, 136, 0.1);
-            border-radius: 5px;
+            border-radius: 8px;
             word-wrap: break-word;
+            border-left: 3px solid #00ff88;
         }
 
         .paste-item img {
@@ -212,10 +242,15 @@
             background: #00ff88;
             color: #0a0a0a;
             border: none;
-            padding: 8px 16px;
+            padding: 10px 20px;
             border-radius: 5px;
             cursor: pointer;
             margin-top: 10px;
+            font-weight: bold;
+        }
+
+        .download-btn:hover {
+            background: #00cc70;
         }
 
         .gesture-indicator {
@@ -223,9 +258,10 @@
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            font-size: 5rem;
+            font-size: 8rem;
             display: none;
             z-index: 2000;
+            text-shadow: 0 0 30px #00ff88;
         }
 
         .hidden {
@@ -258,6 +294,18 @@
             font-weight: bold;
             margin: 20px;
             animation: pulse 1s infinite;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                transform: scale(1);
+            }
+
+            50% {
+                transform: scale(1.1);
+            }
         }
 
         #rpsStatus {
@@ -314,6 +362,67 @@
                 transform: scale(1.2);
             }
         }
+
+        /* Room code UI */
+        .room-code-display {
+            position: fixed;
+            top: 100px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 255, 136, 0.2);
+            border: 2px solid #00ff88;
+            padding: 15px 30px;
+            border-radius: 15px;
+            display: none;
+            z-index: 1001;
+            text-align: center;
+        }
+
+        .room-code-display .code {
+            font-size: 2rem;
+            font-weight: bold;
+            letter-spacing: 5px;
+            margin: 10px 0;
+        }
+
+        .room-input-modal {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(10, 10, 10, 0.98);
+            border: 3px solid #00ff88;
+            padding: 40px;
+            border-radius: 15px;
+            display: none;
+            z-index: 2000;
+            text-align: center;
+            box-shadow: 0 0 50px rgba(0, 255, 136, 0.7);
+        }
+
+        .room-input-modal h3 {
+            margin-bottom: 20px;
+            font-size: 1.5rem;
+        }
+
+        .room-input-modal input {
+            background: transparent;
+            border: 2px solid #00ff88;
+            color: #00ff88;
+            padding: 15px;
+            font-size: 1.5rem;
+            font-family: 'Courier New', monospace;
+            text-align: center;
+            letter-spacing: 8px;
+            width: 280px;
+            margin: 20px 0;
+            border-radius: 8px;
+        }
+
+        .room-input-modal input:focus {
+            outline: none;
+            box-shadow: 0 0 20px rgba(0, 255, 136, 0.5);
+        }
     </style>
 </head>
 
@@ -352,11 +461,33 @@
     </div>
 
     <div id="status"></div>
+
+    <!-- Received Content Area -->
     <div id="pasteArea">
         <div class="header">RECEIVED CONTENT</div>
-        <div id="pasteContent"></div>
+        <div id="pasteContent">
+            <div style="text-align: center; color: #666; padding: 40px;">
+                Waiting for content...
+            </div>
+        </div>
     </div>
+
     <div class="gesture-indicator" id="gestureIndicator"></div>
+
+    <!-- Room Code Display -->
+    <div class="room-code-display" id="roomCodeDisplay">
+        <div>Room Code:</div>
+        <div class="code" id="roomCode">------</div>
+    </div>
+
+    <!-- Room Input Modal -->
+    <div class="room-input-modal" id="roomInputModal">
+        <h3>Enter Room Code</h3>
+        <input type="text" id="roomCodeInput" maxlength="6" placeholder="000000">
+        <br>
+        <button onclick="joinRoom()">JOIN ROOM</button>
+        <button onclick="closeRoomModal()">CANCEL</button>
+    </div>
 
     <!-- RPS Game UI -->
     <div id="rpsGame" class="hidden">
@@ -385,6 +516,7 @@
         let drawingColor = '#ff0000', brushSize = 5, isErasing = false, isDrawing = false;
         let lastX = 0, lastY = 0, lastGestureState = null, gestureDebounce = false;
         let cameraGranted = false;
+        let currentRoom = null;
 
         // RPS mode variables
         let playerId = null;
@@ -400,11 +532,16 @@
         drawCanvas.width = window.innerWidth;
         drawCanvas.height = window.innerHeight;
 
+        // Generate 6-digit room code
+        function generateRoomCode() {
+            return Math.floor(100000 + Math.random() * 900000).toString();
+        }
+
         // Camera permission request
         document.getElementById('requestCameraBtn').onclick = async () => {
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-                stream.getTracks().forEach(track => track.stop()); // Stop test stream
+                stream.getTracks().forEach(track => track.stop());
                 cameraGranted = true;
                 document.getElementById('permissionScreen').classList.add('hidden');
                 document.getElementById('modeSelection').classList.remove('hidden');
@@ -416,11 +553,16 @@
         document.getElementById('copyPasteBtn').onclick = () => {
             if (!cameraGranted) return;
             currentMode = 'copypaste';
+            currentRoom = generateRoomCode();
+
             document.getElementById('mainContainer').classList.add('hidden');
             videoContainer.style.display = 'block';
             document.getElementById('status').style.display = 'block';
             document.getElementById('pasteArea').style.display = 'flex';
-            showStatus('Copy/Paste Mode - Connecting...');
+            document.getElementById('roomCodeDisplay').style.display = 'block';
+            document.getElementById('roomCode').textContent = currentRoom;
+
+            showStatus('Copy/Paste Mode - Room: ' + currentRoom);
             connectWebSocket();
             initCamera();
         };
@@ -430,7 +572,7 @@
             currentMode = 'draw';
             document.getElementById('mainContainer').classList.add('hidden');
             videoContainer.style.display = 'block';
-            videoContainer.classList.add('fullscreen');
+            videoContainer.classList.add('draw-mode');
             drawCanvas.style.display = 'block';
             document.getElementById('colorPalette').style.display = 'flex';
             document.getElementById('status').style.display = 'block';
@@ -441,13 +583,36 @@
         document.getElementById('rpsBtn').onclick = () => {
             if (!cameraGranted) return;
             currentMode = 'rps';
+            currentRoom = generateRoomCode();
+
             document.getElementById('mainContainer').classList.add('hidden');
             videoContainer.style.display = 'block';
             document.getElementById('rpsGame').classList.remove('hidden');
-            showStatus('Connecting to RPS server...');
+            showStatus('RPS Mode - Room: ' + currentRoom);
             connectRpsWebSocket();
             initCamera();
         };
+
+        function showRoomInput() {
+            document.getElementById('roomInputModal').style.display = 'block';
+        }
+
+        function closeRoomModal() {
+            document.getElementById('roomInputModal').style.display = 'none';
+            document.getElementById('roomCodeInput').value = '';
+        }
+
+        function joinRoom() {
+            const code = document.getElementById('roomCodeInput').value;
+            if (code.length === 6) {
+                currentRoom = code;
+                document.getElementById('roomCode').textContent = currentRoom;
+                closeRoomModal();
+                showStatus('Joined room: ' + currentRoom);
+            } else {
+                alert('Please enter a 6-digit room code');
+            }
+        }
 
         document.querySelectorAll('.color-option').forEach(option => {
             option.onclick = (e) => {
@@ -473,31 +638,44 @@
         function connectWebSocket() {
             try {
                 ws = new WebSocket(WS_SERVER);
-                ws.onopen = () => showStatus('✅ Connected to server');
+                ws.onopen = () => {
+                    ws.send(JSON.stringify({ type: 'join_room', room: currentRoom }));
+                    showStatus('✅ Connected to room: ' + currentRoom);
+                };
+
                 ws.onmessage = async (event) => {
                     const msg = JSON.parse(event.data);
 
+                    // Only process messages from same room
+                    if (msg.room !== currentRoom) return;
+
                     if (msg.type === 'text') {
-                        // Write to clipboard
                         await navigator.clipboard.writeText(msg.data);
 
-                        // Auto-display in paste area
+                        const pasteContent = document.getElementById('pasteContent');
+                        if (pasteContent.querySelector('[style*="color: #666"]')) {
+                            pasteContent.innerHTML = '';
+                        }
+
                         const div = document.createElement('div');
                         div.className = 'paste-item';
                         div.innerHTML = `<strong>FROM OTHER DEVICE:</strong><br>${escapeHtml(msg.data)}`;
-                        document.getElementById('pasteContent').appendChild(div);
-                        document.getElementById('pasteContent').scrollTop = 999999;
+                        pasteContent.appendChild(div);
+                        pasteContent.scrollTop = pasteContent.scrollHeight;
 
-                        showStatus('📥 Text received from other device');
+                        showStatus('📥 Text received');
                         showGesture('📥');
 
                     } else if (msg.type === 'image') {
-                        // Write to clipboard
                         const res = await fetch(msg.data);
                         const blob = await res.blob();
                         await navigator.clipboard.write([new ClipboardItem({ [msg.mimeType]: blob })]);
 
-                        // Auto-display in paste area
+                        const pasteContent = document.getElementById('pasteContent');
+                        if (pasteContent.querySelector('[style*="color: #666"]')) {
+                            pasteContent.innerHTML = '';
+                        }
+
                         const div = document.createElement('div');
                         div.className = 'paste-item';
                         div.innerHTML = '<strong>FROM OTHER DEVICE:</strong>';
@@ -517,10 +695,10 @@
                         };
                         div.appendChild(btn);
 
-                        document.getElementById('pasteContent').appendChild(div);
-                        document.getElementById('pasteContent').scrollTop = 999999;
+                        pasteContent.appendChild(div);
+                        pasteContent.scrollTop = pasteContent.scrollHeight;
 
-                        showStatus('📥 Image received from other device');
+                        showStatus('📥 Image received');
                         showGesture('📥');
                     }
                 };
@@ -533,18 +711,14 @@
             hands = new Hands({ locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}` });
             hands.setOptions({
                 maxNumHands: 1,
-                modelComplexity: 0,  // Faster processing
+                modelComplexity: 0,
                 minDetectionConfidence: 0.5,
                 minTrackingConfidence: 0.5
             });
             hands.onResults(onResults);
 
             const stream = await navigator.mediaDevices.getUserMedia({
-                video: {
-                    width: 640,  // Lower res = faster
-                    height: 480,
-                    frameRate: 60  // Higher frame rate
-                }
+                video: { width: 640, height: 480, frameRate: 60 }
             });
             webcam.srcObject = stream;
             camera = new Camera(webcam, {
@@ -572,17 +746,17 @@
             if (open && !closed) state = 'open';
             else if (closed && !open) state = 'closed';
 
-            // Detect GRAB gesture: open → closed
-            if (lastGestureState === 'open' && state === 'closed' && !gestureDebounce) {
-                console.log('GRAB DETECTED - Copying...');
+            // Open palm = COPY
+            if (state === 'open' && lastGestureState !== 'open' && !gestureDebounce) {
+                console.log('OPEN PALM - Copying...');
                 performCopy();
                 gestureDebounce = true;
                 setTimeout(() => { gestureDebounce = false; }, 2000);
             }
 
-            // Detect THROW gesture: closed → open
-            if (lastGestureState === 'closed' && state === 'open' && !gestureDebounce) {
-                console.log('THROW DETECTED - Pasting...');
+            // Closed palm = PASTE
+            if (state === 'closed' && lastGestureState !== 'closed' && !gestureDebounce) {
+                console.log('CLOSED PALM - Pasting...');
                 performPaste();
                 gestureDebounce = true;
                 setTimeout(() => { gestureDebounce = false; }, 2000);
@@ -604,12 +778,10 @@
                 ctx.lineJoin = 'round';
 
                 if (!isDrawing) {
-                    // Start new line
                     ctx.beginPath();
                     ctx.moveTo(x, y);
                     isDrawing = true;
                 } else {
-                    // Continue drawing
                     ctx.lineTo(x, y);
                     ctx.stroke();
                     ctx.beginPath();
@@ -637,17 +809,18 @@
 
         async function performCopy() {
             try {
-                // Get selected text
                 const text = window.getSelection().toString().trim();
 
                 if (text) {
-                    // Copy to clipboard
                     await navigator.clipboard.writeText(text);
 
-                    // Send to server if connected
                     if (ws && ws.readyState === 1) {
-                        ws.send(JSON.stringify({ type: 'text', data: text }));
-                        showStatus('✅ Copied: "' + text.substring(0, 20) + '..." - Sent to server');
+                        ws.send(JSON.stringify({
+                            type: 'text',
+                            data: text,
+                            room: currentRoom
+                        }));
+                        showStatus('✅ Copied and sent: "' + text.substring(0, 20) + '..."');
                     } else {
                         showStatus('✅ Copied: "' + text.substring(0, 20) + '..." - Local only');
                     }
@@ -656,7 +829,6 @@
                     return;
                 }
 
-                // If no text selected, try to copy image from clipboard
                 const items = await navigator.clipboard.read();
                 for (const item of items) {
                     if (item.types.some(t => t.startsWith('image/'))) {
@@ -669,9 +841,10 @@
                                 ws.send(JSON.stringify({
                                     type: 'image',
                                     data: reader.result,
-                                    mimeType: blob.type
+                                    mimeType: blob.type,
+                                    room: currentRoom
                                 }));
-                                showStatus('✅ Image sent to server');
+                                showStatus('✅ Image sent');
                             } else {
                                 showStatus('✅ Image copied - Local only');
                             }
@@ -683,20 +856,24 @@
                     }
                 }
 
-                showStatus('❌ Nothing selected - Select text first then close palm');
+                showStatus('❌ Nothing selected - Select text/image first');
 
             } catch (err) {
                 console.error('Copy error:', err);
-                showStatus('❌ Copy failed - Select text and try again');
+                showStatus('❌ Copy failed');
             }
         }
 
         async function performPaste() {
             try {
                 const items = await navigator.clipboard.read();
+                const pasteContent = document.getElementById('pasteContent');
+
+                if (pasteContent.querySelector('[style*="color: #666"]')) {
+                    pasteContent.innerHTML = '';
+                }
 
                 for (const item of items) {
-                    // Try text first
                     if (item.types.includes('text/plain')) {
                         const blob = await item.getType('text/plain');
                         const text = await blob.text();
@@ -704,17 +881,16 @@
                         if (text.trim()) {
                             const div = document.createElement('div');
                             div.className = 'paste-item';
-                            div.innerHTML = `<strong>TEXT:</strong><br>${escapeHtml(text)}`;
-                            document.getElementById('pasteContent').appendChild(div);
-                            document.getElementById('pasteContent').scrollTop = 999999;
+                            div.innerHTML = `<strong>PASTED:</strong><br>${escapeHtml(text)}`;
+                            pasteContent.appendChild(div);
+                            pasteContent.scrollTop = pasteContent.scrollHeight;
 
                             showGesture('✋');
-                            showStatus('✅ Text pasted: "' + text.substring(0, 20) + '..."');
+                            showStatus('✅ Text pasted');
                             return;
                         }
                     }
 
-                    // Try image
                     if (item.types.some(t => t.startsWith('image/'))) {
                         const imageType = item.types.find(t => t.startsWith('image/'));
                         const blob = await item.getType(imageType);
@@ -723,7 +899,7 @@
                         reader.onloadend = () => {
                             const div = document.createElement('div');
                             div.className = 'paste-item';
-                            div.innerHTML = '<strong>IMAGE:</strong>';
+                            div.innerHTML = '<strong>PASTED IMAGE:</strong>';
 
                             const img = document.createElement('img');
                             img.src = reader.result;
@@ -735,13 +911,13 @@
                             btn.onclick = () => {
                                 const a = document.createElement('a');
                                 a.href = reader.result;
-                                a.download = 'received-image.png';
+                                a.download = 'pasted-image.png';
                                 a.click();
                             };
                             div.appendChild(btn);
 
-                            document.getElementById('pasteContent').appendChild(div);
-                            document.getElementById('pasteContent').scrollTop = 999999;
+                            pasteContent.appendChild(div);
+                            pasteContent.scrollTop = pasteContent.scrollHeight;
 
                             showGesture('✋');
                             showStatus('✅ Image pasted');
@@ -752,11 +928,11 @@
                     }
                 }
 
-                showStatus('❌ Clipboard empty - Nothing to paste');
+                showStatus('❌ Clipboard empty');
 
             } catch (err) {
                 console.error('Paste error:', err);
-                showStatus('❌ Paste failed - Grant clipboard permission');
+                showStatus('❌ Paste failed');
             }
         }
 
@@ -784,12 +960,19 @@
 
                 ws.onopen = () => {
                     playerId = 'player_' + Date.now();
-                    ws.send(JSON.stringify({ type: 'join', playerId }));
+                    ws.send(JSON.stringify({
+                        type: 'join',
+                        playerId,
+                        room: currentRoom
+                    }));
                     showStatus('Connected - Finding opponent...');
                 };
 
                 ws.onmessage = (event) => {
                     const msg = JSON.parse(event.data);
+
+                    // Only process messages from same room
+                    if (msg.room !== currentRoom) return;
 
                     if (msg.type === 'waiting') {
                         document.getElementById('rpsWaiting').style.display = 'block';
@@ -817,14 +1000,16 @@
                             ws.send(JSON.stringify({
                                 type: 'gesture',
                                 playerId,
-                                gesture: currentRpsGesture
+                                gesture: currentRpsGesture,
+                                room: currentRoom
                             }));
                             document.getElementById('yourRpsGesture').textContent = gestureEmojis[currentRpsGesture];
                         } else {
                             ws.send(JSON.stringify({
                                 type: 'gesture',
                                 playerId,
-                                gesture: 'none'
+                                gesture: 'none',
+                                room: currentRoom
                             }));
                             document.getElementById('yourRpsGesture').textContent = '❌';
                         }
@@ -883,16 +1068,11 @@
 
             const extendedFingers = [indexExtended, middleExtended, ringExtended, pinkyExtended].filter(x => x).length;
 
-            // Rock: all fingers closed
             if (extendedFingers === 0) {
                 currentRpsGesture = 'rock';
-            }
-            // Paper: all fingers extended
-            else if (extendedFingers === 4) {
+            } else if (extendedFingers === 4) {
                 currentRpsGesture = 'paper';
-            }
-            // Scissors: index and middle extended
-            else if (indexExtended && middleExtended && !ringExtended && !pinkyExtended) {
+            } else if (indexExtended && middleExtended && !ringExtended && !pinkyExtended) {
                 currentRpsGesture = 'scissors';
             }
         }
